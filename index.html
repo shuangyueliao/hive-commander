@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Hive Commander — command a bee swarm: gather nectar, grow the hive, defend the queen from wasp raids. Free original strategy game.">
+<title>Hive Commander · Bee Swarm Strategy</title>
+<script>
+// 平台 SDK 按域名条件加载（独立运行时完全不加载，游戏行为不变）
+(function () {
+  var host = location.hostname || "";
+  try {
+    if (host.indexOf("crazygames") !== -1) {
+      var s1 = document.createElement("script");
+      s1.src = "https://sdk.crazygames.com/crazygames-sdk-v3.js";
+      s1.onload = function () {
+        if (window.CrazyGames && window.CrazyGames.SDK) {
+          window.CrazyGames.SDK.init().then(function () {
+            try { window.CrazyGames.SDK.game.loadingStart(); } catch (e) {}
+            window.addEventListener("load", function () { try { window.CrazyGames.SDK.game.loadingStop(); } catch (e) {} });
+          }).catch(function () {});
+        }
+      };
+      document.head.appendChild(s1);
+      window.__portal = "crazygames";
+    } else if (host.indexOf("gamedistribution") !== -1 || host.indexOf("html5.gamedistribution.com") !== -1 || host.indexOf("gd.games") !== -1) {
+      var s2 = document.createElement("script");
+      s2.src = "https://sdk.gamedistribution.com/v2/main.min.js";
+      document.head.appendChild(s2);
+      window.__portal = "gamedistribution";
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#20301c; font-family:-apple-system,"Segoe UI",Arial,sans-serif; }
+  #game { position:fixed; inset:0; display:block; touch-action:none; }
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:8px 12px; pointer-events:none; z-index:3; color:#fdf6e3; text-shadow:0 1px 3px rgba(20,40,10,.8); }
+  #hud .grp { display:flex; gap:14px; align-items:center; font-weight:700; font-size:14px; }
+  #hud .tag { color:#ffe28a; }
+  #waveTxt { font-weight:800; letter-spacing:.5px; }
+  #muteBtn, .hbtn { pointer-events:auto; }
+  #muteBtn { background:rgba(20,35,15,.6); color:#ffe28a; border:1px solid rgba(255,226,138,.4); border-radius:10px; padding:6px 10px; font-size:13px; font-weight:700; cursor:pointer; }
+  #btnrow { position:fixed; bottom:10px; left:0; right:0; display:flex; justify-content:center; gap:8px; z-index:3; }
+  .hbtn { background:linear-gradient(160deg,#3d5a2c,#2a4020); color:#fdf6e3; border:1px solid #6d8f4a; border-radius:12px; padding:10px 14px; min-height:44px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(10,25,5,.45); }
+  .hbtn:active { transform:scale(.96); }
+  .hbtn:disabled { opacity:.45; cursor:default; transform:none; }
+  .hbtn small { display:block; font-size:10px; font-weight:600; color:#ffe28a; }
+  #overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(12,22,8,.78); backdrop-filter:blur(3px); z-index:5; }
+  #panel { background:#1d2c17; border:1px solid #4a6b33; border-radius:18px; padding:22px 26px; text-align:center; color:#fdf6e3; max-width:520px; width:min(92vw,520px); max-height:92vh; overflow:auto; }
+  #panel h1 { font-size:26px; letter-spacing:2px; color:#ffd76a; margin-bottom:2px; }
+  #panel h2 { font-size:24px; margin-bottom:4px; }
+  #panel p { color:#c9d8b8; font-size:13px; margin:6px 0; }
+  #panel .final { font-size:34px; font-weight:900; color:#ffd76a; margin:10px 0 6px; }
+  .maps { display:flex; flex-direction:column; gap:8px; margin:12px 0; }
+  .mapBtn { background:linear-gradient(160deg,#33512a,#243a1c); color:#fdf6e3; border:1px solid #6d8f4a; border-radius:12px; padding:10px 12px; cursor:pointer; text-align:left; }
+  .mapBtn b { font-size:15px; color:#ffe28a; }
+  .mapBtn span { display:block; font-size:11px; color:#b8cba4; margin-top:2px; }
+  .row { display:flex; gap:8px; justify-content:center; margin-top:12px; flex-wrap:wrap; }
+  .pbtn { background:linear-gradient(135deg,#5b8a3c,#3c6626); color:#fff; border:none; border-radius:12px; padding:12px 26px; font-size:15px; font-weight:800; cursor:pointer; }
+  .pbtn.alt { background:#33481f; border:1px solid #6d8f4a; }
+  .pbtn:active { transform:scale(.97); }
+  #footer { position:fixed; bottom:2px; left:0; right:0; text-align:center; color:rgba(230,240,210,.4); font-size:10px; pointer-events:none; z-index:2; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="grp"><span class="tag">Honey:</span><span id="honey">0</span><span class="tag">Bees:</span><span id="beesN">0</span></div>
+  <div class="grp"><span id="waveTxt"></span></div>
+  <div class="grp"><button id="muteBtn">Sound: On</button></div>
+</div>
+<div id="btnrow">
+  <button class="hbtn" id="allBtn">All<small>select swarm</small></button>
+  <button class="hbtn" id="homeBtn">Home<small>recall bees</small></button>
+  <button class="hbtn" id="hatchBtn">Hatch<small>5 honey</small></button>
+  <button class="hbtn" id="expBtn">Expand<small>15 honey</small></button>
+</div>
+<div id="overlay"><div id="panel"></div></div>
+<div id="footer">Hive Commander — a free strategy game</div>
+<script>
+"use strict";
+// ============================================================
+// Hive Commander —— 原创轻 RTS：指挥蜂群采蜜、筑巢、抵御胡蜂
+// ============================================================
+var W = 960, H = 600;                     // 世界尺寸（等比缩放适配屏幕）
+var canvas = document.getElementById("game");
+var ctx = canvas.getContext("2d");
+var dpr = 1, vw = 0, vh = 0, vs = 1, vox = 0, voy = 0; // 视口变换
+function resize() {
+  vw = window.innerWidth || 800; vh = window.innerHeight || 600;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(vw * dpr); canvas.height = Math.round(vh * dpr);
+  canvas.style.width = vw + "px"; canvas.style.height = vh + "px";
+  vs = Math.min(vw / W, vh / H);
+  vox = (vw - W * vs) / 2; voy = (vh - H * vs) / 2;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// ---------- 工具 ----------
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function dist2(ax, ay, bx, by) { var dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; }
+function dist(ax, ay, bx, by) { return Math.sqrt(dist2(ax, ay, bx, by)); }
+function mulberry32(seed) { // 可复现随机（地图生成用）
+  var t = seed >>> 0;
+  return function () {
+    t = (t + 0x6D2B79F5) >>> 0;
+    var r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+var elCache = {};
+function el(id) { if (!elCache[id]) elCache[id] = document.getElementById(id); return elCache[id]; }
+
+// ---------- 音效（WebAudio 全合成） ----------
+var actx = null, muted = false;
+function audioInit() {
+  try {
+    if (!window.AudioContext && !window.webkitAudioContext) return;
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+  } catch (e) { actx = null; }
+}
+function beep(freq, dur, type, gainv, delay) {
+  try {
+    if (!actx || muted) return;
+    var t0 = actx.currentTime + (delay || 0);
+    var o = actx.createOscillator(), g = actx.createGain();
+    o.type = type || "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(gainv || 0.1, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  } catch (e) {}
+}
+function noiseBurst(dur, gainv, freq) {
+  try {
+    if (!actx || muted) return;
+    var n = Math.floor(actx.sampleRate * dur);
+    var b = actx.createBuffer(1, n, actx.sampleRate), d = b.getChannelData(0);
+    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    var s = actx.createBufferSource(); s.buffer = b;
+    var g = actx.createGain(); g.gain.value = gainv;
+    var f = actx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq;
+    s.connect(f); f.connect(g); g.connect(actx.destination); s.start();
+  } catch (e) {}
+}
+var humG = null;
+function ensureHum() {
+  try {
+    if (!actx || humG) return;
+    humG = actx.createGain(); humG.gain.value = 0;
+    var o = actx.createOscillator(); o.type = "sawtooth"; o.frequency.value = 112;
+    var o2 = actx.createOscillator(); o2.type = "triangle"; o2.frequency.value = 224;
+    var f = actx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 260;
+    o.connect(f); o2.connect(f); f.connect(humG); humG.connect(actx.destination);
+    o.start(); o2.start();
+  } catch (e) { humG = null; }
+}
+function sGather() { beep(920, 0.08, "sine", 0.06); beep(1380, 0.1, "sine", 0.05, 0.05); }
+function sDeposit() { beep(660, 0.06, "triangle", 0.08); beep(990, 0.09, "triangle", 0.06, 0.05); }
+function sHatch() { noiseBurst(0.07, 0.12, 1400); beep(540, 0.14, "square", 0.05, 0.02); }
+function sAlert() { beep(392, 0.15, "square", 0.08); beep(311, 0.22, "square", 0.08, 0.16); }
+function sThud() { noiseBurst(0.05, 0.1, 480); }
+function sSting() { beep(150, 0.3, "sawtooth", 0.11); noiseBurst(0.12, 0.12, 300); }
+function sWin() { var seq = [523, 659, 784, 1047]; for (var i = 0; i < seq.length; i++) beep(seq[i], 0.35, "triangle", 0.09, i * 0.14); }
+function sLose() { var seq = [330, 262, 196]; for (var j = 0; j < seq.length; j++) beep(seq[j], 0.4, "sawtooth", 0.08, j * 0.2); }
+
+// ---------- 波次表（12 波内联，第 4 波起出现巨胡蜂；存活 10 波即胜） ----------
+var WAVES = [
+  { n: 2, g: 0 }, { n: 3, g: 0 }, { n: 4, g: 1 }, { n: 5, g: 1 },
+  { n: 6, g: 2 }, { n: 7, g: 2 }, { n: 9, g: 3 }, { n: 11, g: 3 },
+  { n: 13, g: 4 }, { n: 15, g: 4 }, { n: 16, g: 5 }, { n: 17, g: 5 }
+];
+var LAST_WAVE = 10;          // 需要存活的总波数
+var PREP_TIME = 20;          // 波间整备秒数
+var SPAWN_GAP = 1.1;         // 胡蜂出场间隔
+
+// ---------- 3 张花田地图 ----------
+var PAL = ["#b07ce8", "#f7d154", "#f4f1ff"]; // 紫 / 黄 / 白
+var MAPS = [
+  { name: "Clover Meadow", desc: "Casual · wasps enter from the sides", seed: 11, hive: [480, 310], sides: ["L", "R"],
+    clusters: [[130, 130], [300, 90], [780, 110], [860, 330], [720, 500], [180, 480], [420, 530], [840, 80]], cols: [0, 1, 2] },
+  { name: "Windward Fields", desc: "Standard · wasps swarm from every direction", seed: 47, hive: [480, 300], sides: ["T", "B", "L", "R"],
+    clusters: [[110, 150], [260, 60], [700, 70], [880, 180], [100, 460], [880, 470], [400, 560], [760, 560], [640, 230], [300, 240]], cols: [1, 2, 0] },
+  { name: "Lavender Hollow", desc: "Hard · long foraging trips, raids from above and flanks", seed: 23, hive: [480, 380], sides: ["T", "L", "R"],
+    clusters: [[140, 110], [360, 80], [640, 90], [850, 140], [120, 330], [860, 360], [300, 530], [660, 530], [480, 140]], cols: [0, 0, 1, 2] }
+];
+var flowers = [];            // {x,y,col,nectar,cap,regenT}
+function genFlowers(mapIdx) {
+  flowers = [];
+  var m = MAPS[mapIdx], rng = mulberry32(m.seed);
+  for (var c = 0; c < m.clusters.length; c++) {
+    var cx = m.clusters[c][0], cy = m.clusters[c][1];
+    var cnt = 3 + Math.floor(rng() * 3); // 3-5 朵/簇
+    for (var k = 0; k < cnt && flowers.length < 22; k++) {
+      var ang = rng() * Math.PI * 2, r = 20 + rng() * 34;
+      var fx = clamp(cx + Math.cos(ang) * r, 36, W - 36);
+      var fy = clamp(cy + Math.sin(ang) * r, 46, H - 36);
+      var ok = true;
+      for (var f2 = 0; f2 < flowers.length; f2++) if (dist2(fx, fy, flowers[f2].x, flowers[f2].y) < 30 * 30) { ok = false; break; }
+      if (ok) flowers.push({ x: fx, y: fy, col: m.cols[Math.floor(rng() * m.cols.length)], nectar: 3, cap: 3, regenT: 0 });
+    }
+  }
+}
+
+// ---------- 对局状态 ----------
+var bees = [], wasps = [], parts = [], floats = [], hatchQ = [];
+var wax = [];                // {a:角度, alive}
+var sel = [];                // 选中的工蜂
+var honey = 0, rings = 1, combHP = 10, queenHP = 3;
+var wave = 1, phase = "menu"; // menu | prep | combat | over
+var prepT = 0, pendW = null, spawnT = 0, winFlag = false;
+var mapIdx = 0, hiveX = 480, hiveY = 300, flashT = 0, gameT = 0;
+var maxWaxBase = 8, waxRegenT = 0;
+var best = 0;
+try { best = parseInt(localStorage.getItem("hc_best") || "0", 10) || 0; } catch (e) {}
+
+function territoryR() { return 70 + rings * 26; }
+function maxWax() { return maxWaxBase + (rings - 1) * 2; }
+function aliveBees() { var n = 0; for (var i = 0; i < bees.length; i++) if (!bees[i].dead) n++; return n; }
+function aliveWasps() { var n = 0; for (var i = 0; i < wasps.length; i++) if (!wasps[i].dead) n++; return n; }
+
+function makeBee(x, y) {
+  return { x: x, y: y, ang: Math.random() * Math.PI * 2, state: "idle", t: 0,
+    hp: 2, maxhp: 2, belly: 0, flower: -1, wt: null, mx: x, my: y,
+    wx: x, wy: y, wanderT: 0, atkCd: 0, flap: Math.random() * 7, dead: false };
+}
+function makeWasp(x, y, giant) {
+  return { x: x, y: y, ang: 0, state: "toHive", hp: giant ? 6 : 3, maxhp: giant ? 6 : 3,
+    giant: !!giant, spd: giant ? 72 : 98, target: null, seg: null, chewT: 0, biteT: 0, chaseT: 0,
+    atkCd: 1 + Math.random() * 0.5, repickT: 0, inHive: false, flap: Math.random() * 7, dead: false };
+}
+function spawnEdgePoint(side) {
+  var m = MAPS[mapIdx], pad = 24;
+  var s = m.sides[Math.floor(Math.random() * m.sides.length)];
+  if (side) s = side;
+  if (s === "L") return [-pad, 60 + Math.random() * (H - 120)];
+  if (s === "R") return [W + pad, 60 + Math.random() * (H - 120)];
+  if (s === "T") return [60 + Math.random() * (W - 120), -pad];
+  return [60 + Math.random() * (W - 120), H + pad];
+}
+function buildWax() {
+  wax = [];
+  var n = maxWax(), R = territoryR();
+  for (var i = 0; i < n; i++) wax.push({ a: (i / n) * Math.PI * 2 + 0.2, alive: true });
+}
+function startGame(idx) {
+  mapIdx = idx; genFlowers(idx);
+  var m = MAPS[idx]; hiveX = m.hive[0]; hiveY = m.hive[1];
+  bees = []; wasps = []; parts = []; floats = []; hatchQ = []; sel = [];
+  for (var i = 0; i < 6; i++) bees.push(makeBee(hiveX + (Math.random() - 0.5) * 60, hiveY + (Math.random() - 0.5) * 60));
+  honey = 6; rings = 1; combHP = 10; queenHP = 3;
+  wave = 1; phase = "prep"; prepT = PREP_TIME; pendW = null; winFlag = false; gameT = 0; flashT = 0;
+  buildWax(); waxRegenT = 0;
+  el("overlay").style.display = "none";
+  audioInit(); ensureHum();
+  // 平台埋点：一局开始
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.gameplayStart();
+    }
+  } catch (e) {}
+}
+function endGame(didWin) {
+  if (phase === "over") return; // 防重入（同 tick 多只胡蜂蜇 Queen）
+  phase = "over"; winFlag = didWin;
+  var score = aliveBees() * 50 + honey * 10 + rings * 100;
+  if (score > best) { best = score; try { localStorage.setItem("hc_best", String(best)); } catch (e) {} }
+  if (didWin) sWin(); else sLose();
+  try {
+    if (window.__portal === "crazygames" && window.CrazyGames && window.CrazyGames.SDK) {
+      window.CrazyGames.SDK.game.gameplayStop();
+      if (didWin) window.CrazyGames.SDK.game.happytime();
+    }
+  } catch (e) {}
+  showResult(didWin, score);
+}
+
+// ---------- 指令 ----------
+function clearDeadSel() { for (var i = sel.length - 1; i >= 0; i--) if (sel[i].dead) sel.splice(i, 1); }
+function issueCommand(cmd) {
+  clearDeadSel();
+  if (!sel.length) return false;
+  for (var i = 0; i < sel.length; i++) {
+    var b = sel[i]; if (b.dead) continue;
+    if (cmd.type === "flower") { b.flower = cmd.idx; b.state = b.belly > 0 ? "goHome" : "goFlower"; }
+    else if (cmd.type === "wasp") { if (cmd.w && !cmd.w.dead) { b.wt = cmd.w; b.state = "attack"; } }
+    else if (cmd.type === "point") { b.state = "move"; b.mx = cmd.x; b.my = cmd.y; b.flower = -1; }
+    else if (cmd.type === "home") { b.state = "goHome"; b.flower = -1; }
+  }
+  return true;
+}
+function selectAll() { sel = []; for (var i = 0; i < bees.length; i++) if (!bees[i].dead) sel.push(bees[i]); }
+function selectBox(x1, y1, x2, y2) {
+  var lx = Math.min(x1, x2), rx = Math.max(x1, x2), ty = Math.min(y1, y2), by = Math.max(y1, y2);
+  sel = [];
+  for (var i = 0; i < bees.length; i++) {
+    var b = bees[i]; if (b.dead) continue;
+    if (b.x >= lx && b.x <= rx && b.y >= ty && b.y <= by) sel.push(b);
+  }
+  return sel.length;
+}
+function selectCount(n) { sel = []; for (var i = 0; i < bees.length && sel.length < n; i++) if (!bees[i].dead) sel.push(bees[i]); }
+function selectByIndex(i) { sel = (bees[i] && !bees[i].dead) ? [bees[i]] : []; }
+
+function doHatch() {
+  if (phase === "menu" || phase === "over" || honey < 5 || hatchQ.length >= 2) return false;
+  honey -= 5; hatchQ.push({ t: 4 }); sHatch(); return true;
+}
+function doExpand() {
+  if (phase === "menu" || phase === "over" || honey < 15 || rings >= 5) return false;
+  honey -= 15; rings++; combHP += 10;
+  buildWax(); waxRegenT = 0;
+  for (var wi = 0; wi < wasps.length; wi++) {
+    if (wasps[wi].state === "chewWax") wasps[wi].seg = nearestSeg(wasps[wi]);
+  }
+  floatText(hiveX, hiveY - 60, "Hive expanded!", "#ffd76a");
+  beep(392, 0.12, "triangle", 0.09); beep(523, 0.16, "triangle", 0.09, 0.1);
+  return true;
+}
+
+// ---------- 特效 ----------
+function popFX(x, y, color, n, spd) {
+  for (var i = 0; i < (n || 8); i++) {
+    var a = Math.random() * Math.PI * 2, s = (spd || 90) * (0.4 + Math.random() * 0.8);
+    parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5, max: 0.5, color: color, size: 2 + Math.random() * 2.5, kind: "dot" });
+  }
+}
+function honeyMote(x, y) {
+  for (var i = 0; i < 4; i++) parts.push({ x: x, y: y, vx: 0, vy: 0, life: 0.9, max: 0.9, color: "#ffd76a", size: 3, kind: "mote" });
+}
+function floatText(x, y, text, color) { floats.push({ x: x, y: y, text: text, life: 1, color: color || "#fff" }); }
+
+// ---------- 胡蜂 AI ----------
+function nearestBeeTo(x, y, maxR) {
+  var bd = maxR ? maxR * maxR : 1e18, bt = null;
+  for (var i = 0; i < bees.length; i++) {
+    var b = bees[i]; if (b.dead) continue;
+    var d = dist2(x, y, b.x, b.y);
+    if (d < bd) { bd = d; bt = b; }
+  }
+  return bt;
+}
+function nearestSeg(w) {
+  var bd = 1e18, bs = null;
+  for (var i = 0; i < wax.length; i++) {
+    var s = wax[i]; if (!s.alive) continue;
+    var sx = hiveX + Math.cos(s.a) * territoryR(), sy = hiveY + Math.sin(s.a) * territoryR();
+    var d = dist2(w.x, w.y, sx, sy);
+    if (d < bd) { bd = d; bs = s; }
+  }
+  return bs;
+}
+function waspGiveUp(w) { // 放弃追击判定：不会无限追永远逃开的蜂
+  if (Math.random() < 0.5) { w.state = "flee"; }
+  else { w.state = "toHive"; w.target = null; w.inHive = false; }
+  w.chaseT = 0;
+}
+function updateWasp(w, dt) {
+  var R = territoryR(), spd = w.spd || (w.giant ? 72 : 98);
+  w.atkCd -= dt; w.repickT -= dt;
+  // 主动攻击：接触范围内任意工蜂都会被蜇（与状态无关）
+  if (w.atkCd <= 0) {
+    var vb = nearestBeeTo(w.x, w.y, 17);
+    if (vb) {
+      vb.hp -= 1; w.atkCd = 0.7;
+      popFX((w.x + vb.x) / 2, (w.y + vb.y) / 2, "#ffdd55", 5, 70); sThud();
+      if (vb.state === "gather" || vb.state === "goFlower" || vb.state === "goHome" || vb.state === "move" || vb.state === "idle") {
+        vb.state = "attack"; vb.wt = w; // 被袭的蜂反击
+      }
+    }
+  }
+  if (w.state === "chase") {
+    var b = w.target;
+    if (!b || b.dead) { // 目标死亡 → 换目标
+      var nb = nearestBeeTo(w.x, w.y, 170);
+      if (nb) { w.target = nb; w.chaseT = 0; }
+      else { w.state = "toHive"; w.inHive = false; }
+    } else {
+      w.chaseT += dt;
+      var d = dist(w.x, w.y, b.x, b.y);
+      if (dist2(b.x, b.y, hiveX, hiveY) < R * R && !w.inHive) { w.state = "toHive"; w.target = null; } // 蜂逃入领地 → 转攻蜂巢
+      else if (w.chaseT > 8 && d > 64) { waspGiveUp(w); }
+      else if (w.chaseT > 14) { waspGiveUp(w); } // 硬超时
+      else {
+        var a = Math.atan2(b.y - w.y, b.x - w.x);
+        w.x += Math.cos(a) * spd * dt; w.y += Math.sin(a) * spd * dt; w.ang = a;
+      }
+    }
+  } else if (w.state === "toHive") {
+    var dH = dist(w.x, w.y, hiveX, hiveY);
+    if (!w.inHive && dH < R + 30) {
+      var seg = nearestSeg(w);
+      var anyAlive = false;
+      for (var i2 = 0; i2 < wax.length; i2++) if (wax[i2].alive) { anyAlive = true; break; }
+      if (seg && anyAlive && dH > R - 24) { w.state = "chewWax"; w.seg = seg; w.chewT = 0; }
+      else if (!anyAlive) { w.inHive = true; }
+    }
+    if (w.state === "toHive") {
+      if (dH > 40) {
+        var a2 = Math.atan2(hiveY - w.y, hiveX - w.x);
+        w.x += Math.cos(a2) * spd * dt; w.y += Math.sin(a2) * spd * dt; w.ang = a2;
+      } else { w.state = "core"; w.biteT = 0; }
+      if (dist(w.x, w.y, hiveX, hiveY) < R - 12) w.inHive = true;
+    }
+  } else if (w.state === "chewWax") {
+    if (!w.seg || !w.seg.alive) { // 蜡段被别的胡蜂啃掉 / 已重建
+      var anyA = false;
+      for (var i3 = 0; i3 < wax.length; i3++) if (wax[i3].alive) { anyA = true; break; }
+      if (!anyA) { w.state = "toHive"; w.inHive = true; }
+      else { var s2 = nearestSeg(w); if (s2) { w.seg = s2; w.chewT = 0; } else { w.state = "toHive"; w.inHive = true; } }
+    } else {
+      var sx2 = hiveX + Math.cos(w.seg.a) * R, sy2 = hiveY + Math.sin(w.seg.a) * R;
+      var dS = dist(w.x, w.y, sx2, sy2);
+      if (dS > 10) {
+        var a3 = Math.atan2(sy2 - w.y, sx2 - w.x);
+        w.x += Math.cos(a3) * spd * dt; w.y += Math.sin(a3) * spd * dt; w.ang = a3;
+      } else {
+        w.chewT += dt;
+        if (Math.random() < dt * 6) popFX(sx2, sy2, "#f5e6b8", 1, 40);
+        if (w.chewT >= 2) { // 啃蜡 2 秒 → 蜡段被毁
+          w.seg.alive = false; w.seg = null; w.state = "toHive";
+          popFX(sx2, sy2, "#f5e6b8", 8, 80); noiseBurst(0.08, 0.08, 700);
+        }
+      }
+    }
+  } else if (w.state === "core") {
+    var dC = dist(w.x, w.y, hiveX, hiveY);
+    if (dC > 44) { w.state = "toHive"; }
+    else if (combHP > 0) { // 先啃巢室（蜂巢 HP）
+      w.biteT += dt;
+      if (w.biteT >= 1.2) { w.biteT = 0; combHP -= 1; popFX(hiveX, hiveY, "#e8b84a", 6, 90); noiseBurst(0.07, 0.09, 600); }
+    } else if (queenHP > 0) { // 巢室已破 → 蜇蜂后一次，然后逃离
+      queenHP -= 1; flashT = 0.5; sSting();
+      floatText(hiveX, hiveY - 70, "Queen stung!", "#ff6a6a");
+      w.state = "flee";
+      if (queenHP <= 0) endGame(false);
+    } else { w.state = "flee"; }
+  } else if (w.state === "flee") {
+    // 径直飞向最近的地图边缘，出界即移除（无固定点，绝不滞留）
+    var dL = w.x, dR = W - w.x, dT = w.y, dB = H - w.y;
+    var m = Math.min(dL, dR, dT, dB), vx = 0, vy = 0;
+    if (m === dT) vy = -1; else if (m === dB) vy = 1; else if (m === dL) vx = -1; else vx = 1;
+    w.ang = Math.atan2(vy, vx);
+    w.x += vx * 120 * dt; w.y += vy * 120 * dt;
+    if (w.x < -40 || w.x > W + 40 || w.y < -40 || w.y > H + 40) w.dead = true;
+  }
+}
+// 胡蜂被工蜂攻击时的转向（被骚扰会反咬）
+function waspPulled(w, by) {
+  if (w.state !== "flee" && w.state !== "chase") { w.state = "chase"; w.target = by; w.chaseT = 0; }
+  else if (w.state === "chase" && Math.random() < 0.5) { w.target = by; }
+}
+
+// ---------- 工蜂 ----------
+function updateBee(b, dt) {
+  var spd = 118;
+  b.atkCd -= dt; b.flap += dt * 42;
+  // 反击：接触范围内的胡蜂（优先自己锁定的目标）
+  if (b.atkCd <= 0 && b.state !== "gather") {
+    var tw = null;
+    if (b.wt && !b.wt.dead && dist2(b.x, b.y, b.wt.x, b.wt.y) < 17 * 17) tw = b.wt;
+    else {
+      for (var i = 0; i < wasps.length; i++) {
+        var w2 = wasps[i];
+        if (!w2.dead && w2.state !== "flee" && dist2(b.x, b.y, w2.x, w2.y) < 17 * 17) { tw = w2; break; }
+      }
+    }
+    if (tw) {
+      tw.hp -= 1; b.atkCd = 0.8;
+      popFX((b.x + tw.x) / 2, (b.y + tw.y) / 2, "#ffe28a", 5, 80); sThud();
+      waspPulled(tw, b);
+      if (tw.hp <= 0) {
+        tw.dead = true;
+        var drop = tw.giant ? 3 : 1;
+        honey += drop;
+        floatText(tw.x, tw.y - 14, "+" + drop + " honey", "#ffd76a");
+        honeyMote(tw.x, tw.y);
+        popFX(tw.x, tw.y, "#ffb02e", 12, 120);
+        if (tw.giant) noiseBurst(0.12, 0.12, 300);
+      }
+    }
+  }
+  function seek(tx, ty, sp) {
+    var d = dist(b.x, b.y, tx, ty);
+    if (d < 4) return true;
+    var a = Math.atan2(ty - b.y, tx - b.x);
+    b.x += Math.cos(a) * sp * dt; b.y += Math.sin(a) * sp * dt; b.ang = a;
+    return d < 6;
+  }
+  if (b.state === "idle") {
+    b.wanderT -= dt;
+    if (b.wanderT <= 0) { // 在领地内闲逛 + 8 字舞
+      b.wanderT = 2 + Math.random() * 2.5;
+      var rr = Math.random() * territoryR() * 0.55, aa = Math.random() * Math.PI * 2;
+      b.wx = clamp(hiveX + Math.cos(aa) * rr, 20, W - 20);
+      b.wy = clamp(hiveY + Math.sin(aa) * rr, 20, H - 20);
+    }
+    seek(b.wx, b.wy, 46);
+  } else if (b.state === "move") {
+    if (seek(b.mx, b.my, spd)) { b.state = "idle"; b.wanderT = 0; }
+  } else if (b.state === "goFlower") {
+    var f = flowers[b.flower];
+    if (!f || f.nectar <= 0) { // 花空了 → 找附近有蜜的花，否则闲逛
+      var nf = -1, nd = 150 * 150;
+      for (var k = 0; k < flowers.length; k++) {
+        if (flowers[k].nectar <= 0) continue;
+        var dd = dist2(b.x, b.y, flowers[k].x, flowers[k].y);
+        if (dd < nd) { nd = dd; nf = k; }
+      }
+      if (nf >= 0) b.flower = nf; else { b.state = "idle"; b.flower = -1; }
+    } else {
+      if (seek(f.x, f.y - 6, spd)) { b.state = "gather"; b.t = 0; }
+    }
+  } else if (b.state === "gather") { // 停在花上采蜜 2 秒
+    var f2 = flowers[b.flower];
+    if (!f2 || f2.nectar <= 0) { b.state = "goFlower"; }
+    else {
+      b.t += dt;
+      if (b.t >= 2) {
+        var inTerr = dist2(f2.x, f2.y, hiveX, hiveY) <= territoryR() * territoryR();
+        b.belly = Math.min(2, inTerr ? 2 : 1); // 领地内花朵产出 ×2
+        f2.nectar -= 1;
+        if (f2.nectar <= 0) { // 花采空 → 同花上的其他蜂立即换位，避免空采
+          for (var q = 0; q < bees.length; q++) {
+            var qb = bees[q];
+            if (qb !== b && !qb.dead && qb.state === "gather" && qb.flower === b.flower) qb.state = "goFlower";
+          }
+        }
+        sGather();
+        popFX(f2.x, f2.y - 6, "#ffd76a", 4, 50);
+        b.state = "goHome";
+      }
+    }
+  } else if (b.state === "goHome") {
+    if (seek(hiveX, hiveY - 10, spd)) {
+      if (b.belly > 0) { honey += b.belly; floatText(hiveX, hiveY - 46, "+" + b.belly, "#ffd76a"); sDeposit(); b.belly = 0; }
+      var f3 = flowers[b.flower];
+      if (f3 && f3.nectar > 0) b.state = "goFlower"; // 继续循环采蜜
+      else { b.state = "idle"; b.flower = -1; }
+    }
+  } else if (b.state === "attack") {
+    var wt = b.wt;
+    if (!wt || wt.dead || wt.state === "flee") { // 目标没了 → 回花或回巢
+      if (wt && wt.state === "flee" && dist2(b.x, b.y, wt.x, wt.y) < 120 * 120) { /* 追到领地边缘为止 */ 
+        var a6 = Math.atan2(wt.y - b.y, wt.x - b.x);
+        b.x += Math.cos(a6) * spd * dt; b.y += Math.sin(a6) * spd * dt; b.ang = a6;
+      } else {
+        b.wt = null;
+        var f4 = flowers[b.flower];
+        b.state = b.belly > 0 ? "goHome" : ((f4 && f4.nectar > 0) ? "goFlower" : "idle");
+      }
+    } else {
+      var a7 = Math.atan2(wt.y - b.y, wt.x - b.x);
+      b.x += Math.cos(a7) * spd * dt; b.y += Math.sin(a7) * spd * dt; b.ang = a7;
+    }
+  }
+  // 单位避让：同类轻微分离（采蜜中的蜂不被挤离花朵）
+  if (b.state !== "gather") {
+    for (var p = 0; p < bees.length; p += 3) {
+      var o = bees[p]; if (o === b || o.dead) continue;
+      var d2 = dist2(b.x, b.y, o.x, o.y);
+      if (d2 < 14 * 14 && d2 > 0.01) {
+        var dd = Math.sqrt(d2), px = (b.x - o.x) / dd, py = (b.y - o.y) / dd;
+        b.x += px * 22 * dt; b.y += py * 22 * dt;
+      }
+    }
+  }
+  b.x = clamp(b.x, 10, W - 10); b.y = clamp(b.y, 10, H - 10);
+}
+
+// ---------- 主更新 ----------
+function update(dt) {
+  dt = Math.min(dt, 0.05); // dt 上限，防止后台切回导致跳变
+  if (phase === "menu" || phase === "over") { updateFX(dt); return; }
+  gameT += dt;
+  if (flashT > 0) flashT -= dt;
+  // 波次流程
+  if (phase === "prep") {
+    prepT -= dt;
+    if (prepT <= 0) {
+      phase = "combat";
+      var wv = WAVES[Math.min(wave - 1, WAVES.length - 1)];
+      pendW = []; spawnT = 0.4;
+      for (var i = 0; i < wv.n; i++) pendW.push(0);
+      for (var g = 0; g < wv.g; g++) pendW.push(1);
+      // 打乱出场顺序
+      for (var s = pendW.length - 1; s > 0; s--) { var j = Math.floor(Math.random() * (s + 1)); var tmp = pendW[s]; pendW[s] = pendW[j]; pendW[j] = tmp; }
+      sAlert();
+    }
+  } else if (phase === "combat") {
+    if (pendW && pendW.length) {
+      spawnT -= dt;
+      if (spawnT <= 0) {
+        spawnT = SPAWN_GAP;
+        var giant = pendW.pop();
+        var pt = spawnEdgePoint();
+        wasps.push(makeWasp(pt[0], pt[1], giant));
+        // 出场选目标：优先附近的采蜜蜂，否则直扑蜂巢
+        var wnew = wasps[wasps.length - 1];
+        var tb = Math.random() < 0.72 ? nearestBeeTo(wnew.x, wnew.y, 300) : null;
+        if (tb) { wnew.state = "chase"; wnew.target = tb; } else { wnew.state = "toHive"; }
+      }
+    } else if (wasps.length === 0) {
+      if (wave >= LAST_WAVE) { endGame(true); return; }
+      wave++; phase = "prep"; prepT = PREP_TIME;
+      floatText(hiveX, hiveY - 70, "Wave cleared!", "#a8e063");
+    }
+  }
+  // 蜡墙再生（领地边缘自动生成守卫蜂蜡）
+  var intact = 0;
+  for (var wi = 0; wi < wax.length; wi++) if (wax[wi].alive) intact++;
+  if (intact < maxWax()) {
+    waxRegenT += dt;
+    if (waxRegenT >= 12) {
+      waxRegenT = 0;
+      var deadOnes = [];
+      for (var wi2 = 0; wi2 < wax.length; wi2++) if (!wax[wi2].alive) deadOnes.push(wax[wi2]);
+      if (deadOnes.length) deadOnes[Math.floor(Math.random() * deadOnes.length)].alive = true;
+    }
+  } else waxRegenT = 0;
+  // 花朵产蜜恢复
+  for (var fi = 0; fi < flowers.length; fi++) {
+    var fl = flowers[fi];
+    if (fl.nectar < fl.cap) { fl.regenT += dt; if (fl.regenT >= 10.5) { fl.regenT = 0; fl.nectar++; } }
+    else fl.regenT = 0;
+  }
+  // 孵化队列
+  if (hatchQ.length) {
+    hatchQ[0].t -= dt;
+    if (hatchQ[0].t <= 0) {
+      hatchQ.shift();
+      bees.push(makeBee(hiveX + (Math.random() - 0.5) * 40, hiveY + (Math.random() - 0.5) * 40));
+      popFX(hiveX, hiveY, "#ffe28a", 10, 100);
+    }
+  }
+  // 单位更新
+  var i2b;
+  for (i2b = 0; i2b < bees.length; i2b++) if (!bees[i2b].dead) updateBee(bees[i2b], dt);
+  for (var wi3 = 0; wi3 < wasps.length; wi3++) if (!wasps[wi3].dead) updateWasp(wasps[wi3], dt);
+  // 死亡清理（战斗中工蜂 hp<=0）
+  for (var bd = 0; bd < bees.length; bd++) {
+    var bb = bees[bd];
+    if (!bb.dead && bb.hp <= 0) {
+      bb.dead = true;
+      popFX(bb.x, bb.y, "#f0b429", 9, 90);
+      popFX(bb.x, bb.y, "#fdf6e3", 5, 60); // 绒毛
+    }
+  }
+  for (var wd = 0; wd < wasps.length; wd++) {
+    var ww = wasps[wd];
+    if (!ww.dead && ww.hp <= 0) {
+      ww.dead = true;
+      var drop2 = ww.giant ? 3 : 1;
+      honey += drop2;
+      floatText(ww.x, ww.y - 14, "+" + drop2 + " honey", "#ffd76a");
+      honeyMote(ww.x, ww.y);
+      popFX(ww.x, ww.y, "#ffb02e", 12, 120);
+    }
+  }
+  bees = bees.filter(function (b) { return !b.dead; });
+  wasps = wasps.filter(function (w) { return !w.dead; });
+  clearDeadSel();
+  // 战斗收尾：目标胡蜂已死的攻击蜂立即转回采蜜/闲逛；追击目标已死的胡蜂立即换目标
+  for (var ar = 0; ar < bees.length; ar++) {
+    var ab = bees[ar];
+    if (ab.state === "attack" && (!ab.wt || ab.wt.dead)) {
+      var fr = flowers[ab.flower];
+      ab.wt = null;
+      ab.state = ab.belly > 0 ? "goHome" : ((fr && fr.nectar > 0) ? "goFlower" : "idle");
+    }
+  }
+  for (var wr2 = 0; wr2 < wasps.length; wr2++) {
+    var wq = wasps[wr2];
+    if (wq.state === "chase" && (!wq.target || wq.target.dead)) {
+      var nb2 = nearestBeeTo(wq.x, wq.y, 170);
+      if (nb2) { wq.target = nb2; wq.chaseT = 0; }
+      else { wq.state = "toHive"; wq.target = null; wq.inHive = false; }
+    }
+  }
+  // 败北判定：蜂后死 或 全蜂覆灭
+  if (queenHP <= 0 && phase !== "over") { endGame(false); return; }
+  if (bees.length === 0 && phase !== "over") { endGame(false); return; }
+  // 蜂群嗡鸣音量随蜂数
+  try { if (humG && actx) humG.gain.value = muted ? 0 : Math.min(0.05, bees.length * 0.0032); } catch (e) {}
+  updateFX(dt);
+  refreshHUD();
+}
+function updateFX(dt) {
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var p = parts[i]; p.life -= dt;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    if (p.kind === "mote") {
+      var a = Math.atan2(hiveY - p.y, hiveX - p.x);
+      p.vx += Math.cos(a) * 600 * dt; p.vy += Math.sin(a) * 600 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+    } else {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 140 * dt;
+    }
+  }
+  for (var f = floats.length - 1; f >= 0; f--) {
+    var fl = floats[f]; fl.life -= dt; fl.y -= 34 * dt;
+    if (fl.life <= 0) floats.splice(f, 1);
+  }
+}
+
+// ---------- HUD ----------
+function refreshHUD() {
+  el("honey").textContent = honey;
+  el("beesN").textContent = bees.length;
+  var wt = el("waveTxt");
+  if (phase === "prep") wt.textContent = "Wave " + wave + " incoming — " + Math.ceil(prepT) + "s";
+  else if (phase === "combat") wt.textContent = "Wave " + wave + " — defend the hive!";
+  else if (phase === "over") wt.textContent = winFlag ? "Victory!" : "The hive has fallen";
+  else wt.textContent = "";
+  el("hatchBtn").disabled = !(honey >= 5 && hatchQ.length < 2 && phase !== "over" && phase !== "menu");
+  el("expBtn").disabled = !(honey >= 15 && rings < 5 && phase !== "over" && phase !== "menu");
+}
+
+// ---------- 渲染 ----------
+var bgCanvas = null;
+function buildBG() {
+  bgCanvas = document.createElement("canvas");
+  bgCanvas.width = W; bgCanvas.height = H;
+  var g = bgCanvas.getContext("2d");
+  var grad = g.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "#4a7a3a"); grad.addColorStop(1, "#35592b");
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  var rng = mulberry32(MAPS[mapIdx].seed + 999);
+  for (var i = 0; i < 46; i++) { // 草地深浅斑块
+    g.fillStyle = "rgba(" + (30 + Math.floor(rng() * 40)) + "," + (80 + Math.floor(rng() * 50)) + ",30,0.16)";
+    g.beginPath(); g.ellipse(rng() * W, rng() * H, 40 + rng() * 90, 26 + rng() * 60, rng() * 3, 0, Math.PI * 2); g.fill();
+  }
+  for (var b = 0; b < 240; b++) { // 草叶短笔触
+    var gx = rng() * W, gy = rng() * H;
+    g.strokeStyle = "rgba(200,230,150," + (0.05 + rng() * 0.1) + ")";
+    g.beginPath(); g.moveTo(gx, gy); g.lineTo(gx + (rng() - 0.5) * 4, gy - 4 - rng() * 5); g.stroke();
+  }
+}
+function hexPath(c, x, y, r, rot) {
+  c.beginPath();
+  for (var i = 0; i < 6; i++) {
+    var a = (rot || 0) + i * Math.PI / 3;
+    var px = x + Math.cos(a) * r, py = y + Math.sin(a) * r;
+    if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+  }
+  c.closePath();
+}
+function drawBee(b, t) {
+  ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.ang);
+  // 8 字舞（闲逛蜂的小摆动）
+  var dance = (b.state === "idle") ? Math.sin(t * 5 + b.flap) * 2.2 : 0;
+  ctx.translate(0, dance);
+  // 翅膀
+  var wf = Math.sin(b.flap) * 0.5;
+  ctx.fillStyle = "rgba(240,250,255,0.55)";
+  ctx.save(); ctx.rotate(-0.5 + wf); ctx.beginPath(); ctx.ellipse(-1, -5, 6.5, 2.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.rotate(0.5 - wf); ctx.beginPath(); ctx.ellipse(-1, 5, 6.5, 2.6, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  // 身体
+  ctx.fillStyle = "#f0b429";
+  ctx.beginPath(); ctx.ellipse(0, 0, 7.5, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#5a3b12";
+  ctx.fillRect(-2.5, -4.6, 1.8, 9.2); ctx.fillRect(1, -4.8, 1.8, 9.6);
+  ctx.beginPath(); ctx.arc(6.2, 0, 3, 0, Math.PI * 2); ctx.fill(); // 头
+  if (b.belly > 0) { // 蜜囊反光
+    ctx.fillStyle = "rgba(255,215,90,0.95)";
+    ctx.beginPath(); ctx.arc(-5, 0, 2.6 + b.belly * 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath(); ctx.arc(-5.8, -1, 0.9, 0, Math.PI * 2); ctx.fill();
+  }
+  if (b.hp < b.maxhp) { ctx.fillStyle = "#ff6a6a"; ctx.fillRect(-6, -8, 12 * (b.hp / b.maxhp), 2); }
+  ctx.restore();
+  if (sel.indexOf(b) >= 0) { // 选中圈
+    ctx.strokeStyle = "rgba(255,215,90,0.9)"; ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.arc(b.x, b.y, 11, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+function drawWasp(w, t) {
+  var sc = w.giant ? 1.7 : 1;
+  ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(w.ang); ctx.scale(sc, sc);
+  var wf = Math.sin(t * 55 + w.flap) * 0.5;
+  ctx.fillStyle = "rgba(220,230,240,0.4)";
+  ctx.save(); ctx.rotate(-0.6 + wf); ctx.beginPath(); ctx.ellipse(-2, -6, 8, 2.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.save(); ctx.rotate(0.6 - wf); ctx.beginPath(); ctx.ellipse(-2, 6, 8, 2.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.fillStyle = w.giant ? "#e0a020" : "#ffd23f";
+  ctx.beginPath(); ctx.ellipse(-2, 0, 10, 5.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#1c1710";
+  ctx.fillRect(-7, -4.9, 2.4, 9.8); ctx.fillRect(-2.5, -5.2, 2.4, 10.4); ctx.fillRect(2, -4.6, 2.4, 9.2);
+  ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-17, -1.6); ctx.lineTo(-17, 1.6); ctx.closePath(); ctx.fill(); // 尾针
+  ctx.beginPath(); ctx.arc(7.5, 0, 3.6, 0, Math.PI * 2); ctx.fill(); // 头
+  ctx.fillStyle = "#ff5040"; // 凶相：红眼
+  ctx.beginPath(); ctx.arc(8.6, -1.7, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(8.6, 1.7, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#1c1710"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(10, -2.6); ctx.lineTo(13, -3.6); ctx.moveTo(10, 2.6); ctx.lineTo(13, 3.6); ctx.stroke(); // 巨颚
+  if (w.hp < w.maxhp) { ctx.fillStyle = "#ff6a6a"; ctx.fillRect(-10, -9, 20 * (w.hp / w.maxhp), 2.4); }
+  ctx.restore();
+}
+function drawHive(t) {
+  var R = territoryR();
+  // 领地圈
+  ctx.strokeStyle = "rgba(255,215,106,0.22)"; ctx.lineWidth = 1.5;
+  ctx.setLineDash([6, 8]);
+  ctx.beginPath(); ctx.arc(hiveX, hiveY, R, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  // 蜂巢：层叠六边形（环数=扩建数）
+  for (var i = rings; i >= 0; i--) {
+    var r = 26 + i * 9;
+    ctx.fillStyle = i % 2 ? "#7a5228" : "#8a5f30";
+    hexPath(ctx, hiveX, hiveY, r, Math.PI / 6); ctx.fill();
+    ctx.strokeStyle = "rgba(60,38,14,0.7)"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  // 巢室格（金色小六边形，数量示意巢室 HP）
+  var cells = Math.min(19, combHP);
+  for (var c = 0; c < cells; c++) {
+    var ang = c * 2.39996 + 0.7, rr = 4 + (c % 3) * 6.5;
+    ctx.fillStyle = "rgba(255,200,70,0.8)";
+    hexPath(ctx, hiveX + Math.cos(ang) * rr * 1.6, hiveY + Math.sin(ang) * rr * 1.6, 3.4, 0); ctx.fill();
+  }
+  // 蜂后（居中，戴金冠）
+  var q = Math.sin(t * 3) * 1.5;
+  ctx.save(); ctx.translate(hiveX, hiveY + q); 
+  ctx.fillStyle = "#f5c542";
+  ctx.beginPath(); ctx.ellipse(0, 0, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#5a3b12"; ctx.fillRect(-3, -5.5, 2, 11); ctx.fillRect(1.4, -5.5, 2, 11);
+  ctx.beginPath(); ctx.arc(8, 0, 3.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#ffd76a";
+  ctx.beginPath(); ctx.moveTo(-2, -7); ctx.lineTo(0, -11); ctx.lineTo(2, -7); ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // 孵化进度
+  if (hatchQ.length) {
+    ctx.strokeStyle = "rgba(255,226,138,0.9)"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(hiveX, hiveY, 34, -Math.PI / 2, -Math.PI / 2 + (1 - hatchQ[0].t / 4) * Math.PI * 2); ctx.stroke();
+  }
+  // 蜡墙段
+  for (var wi = 0; wi < wax.length; wi++) {
+    var s = wax[wi]; if (!s.alive) continue;
+    var wx = hiveX + Math.cos(s.a) * R, wy = hiveY + Math.sin(s.a) * R;
+    ctx.fillStyle = "#f2e3b3";
+    ctx.beginPath(); ctx.arc(wx, wy, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(wx - 4, wy + 2, 4.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(wx + 4, wy + 2, 4.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(214,186,120,0.9)";
+    ctx.beginPath(); ctx.arc(wx - 1.5, wy - 1.5, 2.4, 0, Math.PI * 2); ctx.fill();
+  }
+}
+function drawFlower(f, t) {
+  var sway = Math.sin(t * 1.6 + f.x * 0.05) * 1.4;
+  var r = 8 + f.nectar * 1.6;
+  ctx.save(); ctx.translate(f.x + sway, f.y);
+  ctx.strokeStyle = "#2e5423"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, 14); ctx.quadraticCurveTo(1.5, 7, 0, 0); ctx.stroke();
+  ctx.fillStyle = PAL[f.col];
+  for (var p = 0; p < 6; p++) {
+    var a = p * Math.PI / 3 + 0.3;
+    ctx.beginPath(); ctx.ellipse(Math.cos(a) * r * 0.75, Math.sin(a) * r * 0.75, r * 0.62, r * 0.4, a, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = f.nectar > 0 ? "rgba(255,200,60,0.95)" : "#9a8a4a";
+  ctx.beginPath(); ctx.arc(0, 0, r * 0.42, 0, Math.PI * 2); ctx.fill();
+  if (f.nectar > 0) { ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.arc(-1, -1, r * 0.14, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+var lastT = 0, simT = 0;
+function frame(t) {
+  var dt = Math.min((t - lastT) / 1000 || 0.016, 0.05); lastT = t;
+  update(dt);
+  render(t / 1000);
+  requestAnimationFrame(frame);
+}
+function render(t) {
+  simT = t;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 世界外留边
+  ctx.fillStyle = "#26381f"; ctx.fillRect(0, 0, vw, vh);
+  ctx.translate(vox, voy); ctx.scale(vs, vs);
+  if (phase === "menu") return;
+  if (!bgCanvas) buildBG();
+  ctx.drawImage(bgCanvas, 0, 0);
+  // 花朵
+  for (var i = 0; i < flowers.length; i++) drawFlower(flowers[i], t);
+  drawHive(t);
+  // 胡蜂
+  for (var w2 = 0; w2 < wasps.length; w2++) drawWasp(wasps[w2], t);
+  // 工蜂
+  for (var b2 = 0; b2 < bees.length; b2++) drawBee(bees[b2], t);
+  // 粒子
+  for (var p = 0; p < parts.length; p++) {
+    var pt = parts[p];
+    ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+    ctx.fillStyle = pt.color;
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  // 浮动文字
+  ctx.font = "800 14px sans-serif"; ctx.textAlign = "center";
+  for (var f = 0; f < floats.length; f++) {
+    var fl = floats[f];
+    ctx.globalAlpha = Math.min(1, fl.life);
+    ctx.fillStyle = fl.color;
+    ctx.fillText(fl.text, fl.x, fl.y);
+    ctx.globalAlpha = 1;
+  }
+  // 框选矩形
+  if (drag && dragNow && dragging) {
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeStyle = "rgba(255,215,90,0.9)"; ctx.lineWidth = 1;
+    var rx = Math.min(dragNow[0], dragNow[2]), ry = Math.min(dragNow[1], dragNow[3]);
+    var rw = Math.abs(dragNow[2] - dragNow[0]), rh = Math.abs(dragNow[3] - dragNow[1]);
+    ctx.fillRect(rx, ry, rw, rh); ctx.strokeRect(rx, ry, rw, rh);
+  }
+  // 蜂后被蜇红闪
+  if (flashT > 0) {
+    ctx.fillStyle = "rgba(255,40,40," + (flashT * 0.35) + ")";
+    ctx.fillRect(0, 0, W, H);
+  }
+  // 竖屏提示
+  if (vh > vw * 1.15) {
+    ctx.fillStyle = "rgba(253,246,227,0.75)"; ctx.font = "600 13px sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("Tip: rotate your device for a wider view", W / 2, H - 14);
+  }
+}
+
+// ---------- 输入（触屏 + 桌面双输入） ----------
+var drag = false, dragging = false, dragStart = null, dragNow = null, downT = 0;
+function toWorld(cx, cy) {
+  var rect = canvas.getBoundingClientRect();
+  return [((cx - rect.left) - vox) / vs, ((cy - rect.top) - voy) / vs];
+}
+function tapAt(x, y) { // 世界坐标点按：花→采蜜 / 胡蜂→攻击 / 空地→移动
+  if (phase !== "prep" && phase !== "combat") return;
+  for (var i = 0; i < wasps.length; i++) {
+    if (!wasps[i].dead && dist2(x, y, wasps[i].x, wasps[i].y) < 26 * 26) {
+      if (!sel.length) selectAll();
+      issueCommand({ type: "wasp", w: wasps[i] });
+      return;
+    }
+  }
+  for (var k = 0; k < flowers.length; k++) {
+    if (dist2(x, y, flowers[k].x, flowers[k].y) < 24 * 24) {
+      if (!sel.length) selectAll();
+      issueCommand({ type: "flower", idx: k });
+      return;
+    }
+  }
+  if (sel.length) issueCommand({ type: "point", x: x, y: y });
+}
+function pDown(cx, cy) {
+  audioInit(); ensureHum();
+  var p = toWorld(cx, cy);
+  drag = true; dragging = false; dragStart = p; dragNow = [p[0], p[1], p[0], p[1]]; downT = Date.now();
+}
+function pMove(cx, cy) {
+  if (!drag) return;
+  var p = toWorld(cx, cy);
+  dragNow = [dragStart[0], dragStart[1], p[0], p[1]];
+  if (dist(dragStart[0], dragStart[1], p[0], p[1]) * vs > 14) dragging = true;
+}
+function pUp() {
+  if (!drag) return;
+  drag = false;
+  if (phase !== "prep" && phase !== "combat") { dragging = false; return; }
+  if (dragging) {
+    selectBox(Math.min(dragNow[0], dragNow[2]), Math.min(dragNow[1], dragNow[3]),
+              Math.max(dragNow[0], dragNow[2]), Math.max(dragNow[1], dragNow[3]));
+    dragging = false;
+    if (sel.length) beep(700, 0.04, "sine", 0.04);
+  } else {
+    var dtap = Date.now() - downT;
+    if (dtap < 400) tapAt(dragStart[0], dragStart[1]);
+  }
+}
+canvas.addEventListener("mousedown", function (e) { pDown(e.clientX, e.clientY); });
+canvas.addEventListener("mousemove", function (e) { pMove(e.clientX, e.clientY); });
+window.addEventListener("mouseup", function () { pUp(); });
+canvas.addEventListener("touchstart", function (e) { e.preventDefault(); var t = e.touches[0]; pDown(t.clientX, t.clientY); }, { passive: false });
+canvas.addEventListener("touchmove", function (e) { e.preventDefault(); var t = e.touches[0]; pMove(t.clientX, t.clientY); }, { passive: false });
+canvas.addEventListener("touchend", function (e) { e.preventDefault(); pUp(); }, { passive: false });
+document.addEventListener("keydown", function (e) {
+  if (phase === "menu" || phase === "over") return;
+  var k = e.key.toLowerCase();
+  if (k === "a") selectAll();
+  else if (k === "h") issueCommand({ type: "home" });
+  else if (k === "b") doHatch();
+  else if (k === "e") doExpand();
+});
+el("allBtn").addEventListener("click", function () { selectAll(); beep(700, 0.05, "sine", 0.05); });
+el("homeBtn").addEventListener("click", function () { issueCommand({ type: "home" }); });
+el("hatchBtn").addEventListener("click", function () { doHatch(); });
+el("expBtn").addEventListener("click", function () { doExpand(); });
+el("muteBtn").addEventListener("click", function () {
+  muted = !muted;
+  el("muteBtn").textContent = muted ? "Sound: Off" : "Sound: On";
+  if (muted) { try { if (humG) humG.gain.value = 0; } catch (e) {} }
+  else { audioInit(); ensureHum(); }
+});
+
+// ---------- 菜单 / 结算 ----------
+function showMenu() {
+  phase = "menu";
+  el("overlay").style.display = "flex";
+  var p = el("panel");
+  var html = "<h1>HIVE COMMANDER</h1>" +
+    "<p>Command the swarm. Gather nectar, grow the hive, defend the queen.</p>" +
+    "<div class='maps'>";
+  for (var i = 0; i < MAPS.length; i++) {
+    html += "<button class='mapBtn' data-map='" + i + "'><b>" + MAPS[i].name + "</b><span>" + MAPS[i].desc + "</span></button>";
+  }
+  html += "</div>" +
+    "<p>Tap a flower: send swarm to gather (2s per load, auto return) &middot; Tap a wasp: attack<br>" +
+    "Drag: box-select &middot; Honey 5 = hatch a worker &middot; Honey 15 = expand a ring (+territory, +wax)</p>" +
+    "<p>Survive <b>" + LAST_WAVE + " wasp waves</b>. Wasp contact stings the queen 3 times = defeat.<br>" +
+    "Inside your territory flowers yield double. Wax walls slow raiders down.</p>" +
+    "<div class='row'><button class='pbtn alt' id='muteM'>Sound: " + (muted ? "Off" : "On") + "</button></div>" +
+    "<p>Best score: <b>" + best + "</b></p>";
+  p.innerHTML = html;
+  var btns = p.querySelectorAll(".mapBtn");
+  for (var b = 0; b < btns.length; b++) {
+    (function (btn) {
+      btn.addEventListener("click", function () { startGame(parseInt(btn.getAttribute("data-map"), 10)); });
+    })(btns[b]);
+  }
+  var mm = p.querySelector("#muteM");
+  if (mm) mm.addEventListener("click", function () {
+    muted = !muted;
+    el("muteBtn").textContent = muted ? "Sound: Off" : "Sound: On";
+    if (!muted) { audioInit(); ensureHum(); }
+    showMenu();
+  });
+}
+function showResult(didWin, score) {
+  el("overlay").style.display = "flex";
+  var p = el("panel");
+  var bk = "Bees " + aliveBees() + " &times; 50 &middot; Honey " + honey + " &times; 10 &middot; Rings " + rings + " &times; 100";
+  p.innerHTML = "<h2 style='color:" + (didWin ? "#ffd76a" : "#ff8a7a") + "'>" + (didWin ? "VICTORY" : "DEFEAT") + "</h2>" +
+    "<p>" + (didWin ? "The swarm survived all " + LAST_WAVE + " waves. The queen is proud!" :
+    (queenHP <= 0 ? "Wasps reached the queen." : "Every worker was lost.")) + "</p>" +
+    "<div class='final'>" + score + "</div>" +
+    "<p>" + bk + "</p>" +
+    "<p>Best score: <b>" + best + "</b></p>" +
+    "<div class='row'>" +
+    "<button class='pbtn' id='againB'>Play Again</button>" +
+    "<button class='pbtn alt' id='menuB'>Menu</button></div>";
+  el("againB").addEventListener("click", function () { startGame(mapIdx); });
+  el("menuB").addEventListener("click", function () { showMenu(); });
+}
+
+// ---------- 主循环 ----------
+refreshHUD();
+showMenu();
+requestAnimationFrame(frame);
+
+// ---------- 测试钩子（不影响游戏逻辑） ----------
+window.__hc = {
+  startGame: startGame,
+  update: update,
+  render: render,
+  selectAll: selectAll, selectBox: selectBox, selectCount: selectCount, selectByIndex: selectByIndex,
+  issueCommand: issueCommand, tapAt: tapAt,
+  doHatch: doHatch, doExpand: doExpand,
+  bees: function () { return bees; },
+  wasps: function () { return wasps; },
+  flowers: function () { return flowers; },
+  wax: function () { return wax; },
+  selB: function () { return sel; },
+  forceWasp: function (o) { var w = makeWasp(o.x || 100, o.y || 100, o.giant); if (o.state) w.state = o.state; if (o.hp) w.hp = o.hp; wasps.push(w); return w; },
+  forceBee: function (o) { var b = makeBee(o.x || 100, o.y || 100); if (o.state) b.state = o.state; if (o.belly !== undefined) b.belly = o.belly; if (o.flower !== undefined) b.flower = o.flower; if (o.hp) b.hp = o.hp; bees.push(b); return b; },
+  setPhase: function (p, t) { phase = p; if (t !== undefined) prepT = t; },
+  st: function () {
+    return { honey: honey, rings: rings, combHP: combHP, queenHP: queenHP, wave: wave, phase: phase,
+      prepT: prepT, bees: bees.length, wasps: wasps.length, sel: sel.length, hatchQ: hatchQ.length,
+      winFlag: winFlag, gameT: gameT, territoryR: territoryR(), map: mapIdx, hx: hiveX, hy: hiveY };
+  },
+  setRes: function (o) { // 仅供测试：直接设置资源/状态
+    if (o.honey !== undefined) honey = o.honey;
+    if (o.comb !== undefined) combHP = o.comb;
+    if (o.queen !== undefined) queenHP = o.queen;
+    if (o.wave !== undefined) wave = o.wave;
+    if (o.rings !== undefined) { rings = o.rings; buildWax(); }
+  },
+  WAVES: WAVES, MAPS: MAPS, LAST_WAVE: LAST_WAVE, PREP_TIME: PREP_TIME
+};
+</script>
+</body>
+</html>
